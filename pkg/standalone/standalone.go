@@ -309,7 +309,7 @@ func installDaprBinary(wg *sync.WaitGroup, errorChan chan<- error, dir, version 
 
 func makeExecutable(filepath string) error {
 	if runtime.GOOS != daprWindowsOS {
-		err := os.Chmod(filepath, 0777)
+		err := os.Chmod(filepath, 0755)
 		if err != nil {
 			return err
 		}
