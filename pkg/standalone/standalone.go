@@ -9,7 +9,6 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/client"
 	"github.com/fatih/color"
 
 	"github.com/briandowns/spinner"
@@ -52,11 +50,6 @@ const (
 
 // Init installs Dapr on a local machine using the supplied runtimeVersion.
 func Init(runtimeVersion string, dockerNetwork string, installLocation string) error {
-	dockerInstalled := isDockerInstalled()
-	if !dockerInstalled {
-		return errors.New("could not connect to Docker. Docker may not be installed or running")
-	}
-
 	dir, err := getDaprDir()
 	if err != nil {
 		return err
@@ -66,7 +59,7 @@ func Init(runtimeVersion string, dockerNetwork string, installLocation string) e
 	errorChan := make(chan error)
 
 	initSteps := []func(*sync.WaitGroup, chan<- error, string, string, string, string){}
-	initSteps = append(initSteps, installDaprBinary, runPlacementService, runRedis)
+	initSteps = append(initSteps, runPlacementService, runRedis)
 
 	wg.Add(len(initSteps))
 
@@ -106,15 +99,6 @@ func Init(runtimeVersion string, dockerNetwork string, installLocation string) e
 	}
 
 	return nil
-}
-
-func isDockerInstalled() bool {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		return false
-	}
-	_, err = cli.Ping(context.Background())
-	return err == nil
 }
 
 func getDaprDir() (string, error) {
@@ -162,14 +146,14 @@ func runRedis(wg *sync.WaitGroup, errorChan chan<- error, dir, version string, d
 	}
 
 	args = append(args, "redis")
-	err := utils.RunCmdAndWait("docker", args...)
+	err := utils.RunCmdAndWait("podman", args...)
 
 	if err != nil {
 		runError := isContainerRunError(err)
 		if !runError {
 			errorChan <- parseDockerError("Redis state store", err)
 		} else {
-			errorChan <- fmt.Errorf("docker %s failed with: %v", args, err)
+			errorChan <- fmt.Errorf("podman %s failed with: %v", args, err)
 		}
 		return
 	}
@@ -183,7 +167,7 @@ func parseDockerError(component string, err error) error {
 			return fmt.Errorf("failed to launch %s. Is it already running?", component)
 		}
 		if exitCode == 127 {
-			return fmt.Errorf("failed to launch %s. Make sure Docker is installed and running", component)
+			return fmt.Errorf("failed to launch %s. Make sure Podman is installed and running", component)
 		}
 	}
 	return err
@@ -231,14 +215,14 @@ func runPlacementService(wg *sync.WaitGroup, errorChan chan<- error, dir, versio
 
 	args = append(args, image)
 
-	err := utils.RunCmdAndWait("docker", args...)
+	err := utils.RunCmdAndWait("podman", args...)
 
 	if err != nil {
 		runError := isContainerRunError(err)
 		if !runError {
 			errorChan <- parseDockerError("placement service", err)
 		} else {
-			errorChan <- fmt.Errorf("docker %s failed with: %v", args, err)
+			errorChan <- fmt.Errorf("podman %s failed with: %v", args, err)
 		}
 		return
 	}
